@@ -1,0 +1,79 @@
+<video id="player" autoplay></video>
+<br />
+<button id="start">Start</button>
+<button id="stop">Stop</button>
+<a id="download">Download</a>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  // Create a single supabase client for interacting with your database
+  const supa = supabase.createClient(
+    'https://yibibcqfratmlmgbxayc.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlpYmliY3FmcmF0bWxtZ2J4YXljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjkwNjMxMjgsImV4cCI6MjA0NDYzOTEyOH0.uHaVn2ByEgrLRp0XXRvr6w-MFLhZR9KfWrpI5WJ5w5o'
+  );
+
+  var player = document.getElementById('player');
+
+  let shouldStop = false;
+  let stopped = false;
+  const downloadLink = document.getElementById('download');
+  const stopButton = document.getElementById('stop');
+  const startButton = document.getElementById('start');
+
+  startButton.addEventListener('click', function () {
+    console.log('start button clicked');
+    navigator.mediaDevices
+      .getUserMedia({ audio: false, video: true })
+      .then(handleSuccess);
+  });
+
+  stopButton.addEventListener('click', function () {
+    console.log('stop button clicked');
+    shouldStop = true;
+  });
+
+  var handleSuccess = function (stream) {
+    player.srcObject = stream;
+
+    const options = { mimeType: 'video/webm' };
+    const recordedChunks = [];
+    const mediaRecorder = new MediaRecorder(stream, options);
+
+    mediaRecorder.addEventListener('dataavailable', function (e) {
+      console.log('dataavailable');
+      if (e.data.size > 0) {
+        recordedChunks.push(e.data);
+      }
+
+      if (shouldStop === true && stopped === false) {
+        mediaRecorder.stop();
+        console.log('recording stopped');
+        stopped = true;
+      }
+    });
+
+    mediaRecorder.addEventListener('stop', function () {
+      //downloadLink.href = URL.createObjectURL(new Blob(recordedChunks));
+      //downloadLink.download = 'acetest.webm';
+      const blob = new Blob(recordedChunks);
+      supa.storage
+        .from('videos')
+        .upload(`screen-capture_${Date.now()}.webm`, blob, {
+          contentType: 'video/webm',
+        })
+        .then((res) => {
+          console.log(res);
+          // Send to API
+          supa.functions
+            .invoke('describe-video', {
+              body: JSON.stringify({ path: res.data.fullPath }),
+            })
+            .then((res) => {
+              console.log('function response', res);
+            });
+        });
+    });
+
+    mediaRecorder.start(1000);
+  };
+</script>
