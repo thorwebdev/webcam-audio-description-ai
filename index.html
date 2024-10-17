@@ -2,21 +2,26 @@
 <br />
 <button id="start">Start</button>
 <button id="stop">Stop</button>
-<a id="download">Download</a>
+<br />
+<textarea id="description" rows="10" cols="50"></textarea>
+<br />
+<audio id="audio-description" controls></audio>
 
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
+  const SUPABASE_URL = 'http://127.0.0.1:54321';
+  const SUPABASE_ANON_KEY =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+
   // Create a single supabase client for interacting with your database
-  const supa = supabase.createClient(
-    'http://127.0.0.1:54321',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
-  );
+  const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   var player = document.getElementById('player');
 
   let shouldStop = false;
   let stopped = false;
-  const downloadLink = document.getElementById('download');
+  const textarea = document.getElementById('description');
+  const audioDescription = document.getElementById('audio-description');
   const stopButton = document.getElementById('stop');
   const startButton = document.getElementById('start');
 
@@ -72,7 +77,14 @@
               body: formData,
             })
             .then((res) => {
-              console.log('function response', res);
+              const {
+                data: { description },
+              } = res;
+              textarea.value = description;
+              audioDescription.src = `${SUPABASE_URL}/functions/v1/tts?text=${encodeURI(
+                description
+              )}`;
+              audioDescription.play();
             });
         });
     });
