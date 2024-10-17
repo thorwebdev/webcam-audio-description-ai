@@ -8,9 +8,11 @@ import {
   prepareVirtualFile,
 } from "https://deno.land/x/mock_file@v1.1.2/mod.ts";
 
-import { GoogleAIFileManager } from "npm:@google/generative-ai/server";
+import {
+  FileMetadataResponse,
+  GoogleAIFileManager,
+} from "npm:@google/generative-ai/server";
 import { GoogleGenerativeAI } from "npm:@google/generative-ai";
-import { createClient } from "jsr:@supabase/supabase-js@2";
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,10 +33,17 @@ const model = genAI.getGenerativeModel({
   model: "gemini-1.5-pro",
 });
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL") ?? "",
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-);
+// Check file status
+const checkFileStatus = async (file: FileMetadataResponse): Promise<void> => {
+  if (file.state === "PROCESSING") {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // TODO: open issue: Why does file not include id?
+    const newFile = await fileManager.getFile(file.name);
+    console.log("newFile", newFile);
+    return checkFileStatus(newFile);
+  }
+  return;
+};
 
 Deno.serve(async (req) => {
   // Handle CORS
@@ -42,17 +51,9 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const { path } = await req.json();
-  console.log(path);
-
-  const { data, error } = await supabase.storage.from("videos").download(path);
-  if (error) {
-    console.log(error);
-    return new Response(error.message, {
-      status: 500,
-    });
-  }
-  console.log("data", typeof data);
+  const formData = await req.formData();
+  const data = formData.get("file") as Blob;
+  // We need to mock the file because Edge Runtime doesn't have a filesystem.
   prepareVirtualFile(
     "./screen-capture.webm",
     new Uint8Array(await data.arrayBuffer()),
@@ -65,6 +66,7 @@ Deno.serve(async (req) => {
   });
 
   console.log(uploadResponse);
+  await checkFileStatus(uploadResponse.file);
 
   // Generate content using text and the URI reference for the uploaded file.
   const result = await model.generateContent([
@@ -75,16 +77,18 @@ Deno.serve(async (req) => {
       },
     },
     {
-      text: "Provide visual descriptions with timestamps.",
+      text:
+        "Provide visual descriptions in sequence of the video. Do not include any timestamps or positions as coordinates.",
     },
   ]);
 
   // Handle the response of generated text
-  console.log(JSON.stringify(result, null, 2));
+  const description = result.response.text();
+  console.log(JSON.stringify({ description }, null, 2));
 
   return new Response(
-    JSON.stringify(result),
-    { headers: { "Content-Type": "application/json" } },
+    JSON.stringify({ description }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 });
 

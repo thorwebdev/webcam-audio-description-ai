@@ -8,8 +8,8 @@
 <script>
   // Create a single supabase client for interacting with your database
   const supa = supabase.createClient(
-    'https://yibibcqfratmlmgbxayc.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlpYmliY3FmcmF0bWxtZ2J4YXljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjkwNjMxMjgsImV4cCI6MjA0NDYzOTEyOH0.uHaVn2ByEgrLRp0XXRvr6w-MFLhZR9KfWrpI5WJ5w5o'
+    'http://127.0.0.1:54321',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
   );
 
   var player = document.getElementById('player');
@@ -56,6 +56,9 @@
       //downloadLink.href = URL.createObjectURL(new Blob(recordedChunks));
       //downloadLink.download = 'acetest.webm';
       const blob = new Blob(recordedChunks);
+      const formData = new FormData();
+      formData.append('file', blob, `screen-capture_${Date.now()}.webm`);
+
       supa.storage
         .from('videos')
         .upload(`screen-capture_${Date.now()}.webm`, blob, {
@@ -66,7 +69,7 @@
           // Send to API
           supa.functions
             .invoke('describe-video', {
-              body: JSON.stringify({ path: res.data.fullPath }),
+              body: formData,
             })
             .then((res) => {
               console.log('function response', res);
