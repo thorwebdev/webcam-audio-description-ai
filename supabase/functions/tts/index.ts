@@ -4,11 +4,17 @@
 
 // Setup type definitions for built-in Supabase Runtime APIs
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2.45.6";
 import { ElevenLabsClient } from "npm:elevenlabs";
 
 const client = new ElevenLabsClient({
   apiKey: Deno.env.get("ELEVENLABS_API_KEY")!,
 });
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_ANON_KEY")!,
+);
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
@@ -22,26 +28,44 @@ Deno.serve(async (req) => {
     );
   }
 
-  const audioStream = await client.generate({
-    voice: "Rachel",
-    model_id: "eleven_turbo_v2",
-    text,
-  });
+  try {
+    const audioStream = await client.generate({
+      voice: "Rachel",
+      model_id: "eleven_turbo_v2",
+      text,
+    });
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      for await (const chunk of audioStream) {
-        controller.enqueue(chunk);
-      }
-      controller.close();
-    },
-  });
+    const stream = new ReadableStream({
+      async start(controller) {
+        for await (const chunk of audioStream) {
+          controller.enqueue(chunk);
+        }
+        controller.close();
+      },
+    });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "audio/mp3",
-    },
-  });
+    // Branch stream to Supabase Storage
+    const [browserStream, storageStream] = stream.tee();
+
+    // Upload to Supabase Storage
+    supabase.storage
+      .from("videos")
+      .upload(`audio-stream_${Date.now()}.mp3`, storageStream, {
+        contentType: "audio/mp3",
+      });
+
+    return new Response(browserStream, {
+      headers: {
+        "Content-Type": "audio/mp3",
+      },
+    });
+  } catch (error) {
+    console.log("error", { error });
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
 });
 
 /* To invoke locally:

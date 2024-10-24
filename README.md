@@ -13,7 +13,7 @@ Generate audio descriptions for your videos using [Google Gemini]() and [ElevenL
 ```bash
 supabase start
 supabase functions serve --no-verify-jwt
-
+# In another terminal
 python3 -m http.server
 ```
 
