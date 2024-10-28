@@ -3,11 +3,9 @@
 // This enables autocomplete, go to definition, etc.
 
 import { createClient } from "jsr:@supabase/supabase-js@2.45.6";
-import { ElevenLabsClient } from "npm:elevenlabs";
+import OpenAI from "https://deno.land/x/openai@v4.68.2/mod.ts";
 
-const client = new ElevenLabsClient({
-  apiKey: Deno.env.get("ELEVENLABS_API_KEY")!,
-});
+const client = new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY")! });
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -27,20 +25,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const audioStream = await client.generate({
-      voice: "Rachel",
-      model_id: "eleven_turbo_v2",
-      text,
+    const response = await client.audio.speech.create({
+      model: "tts-1",
+      voice: "nova",
+      input: text,
     });
 
-    const stream = new ReadableStream({
-      async start(controller) {
-        for await (const chunk of audioStream) {
-          controller.enqueue(chunk);
-        }
-        controller.close();
-      },
-    });
+    const stream = response.body;
+    if (!stream) {
+      throw new Error("No stream");
+    }
 
     // Branch stream to Supabase Storage
     const [browserStream, storageStream] = stream.tee();
@@ -72,7 +66,7 @@ Deno.serve(async (req) => {
   1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
   2. Make an HTTP request:
 
-  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/tts' \
+  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/tts-openai' \
     --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' \
     --header 'Content-Type: application/json' \
     --data '{"name":"Functions"}'
