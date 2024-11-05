@@ -14,6 +14,14 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_ANON_KEY")!,
 );
 
+globalThis.addEventListener("storageUpload", async (event) => {
+  const { data, error } = await (event as CustomEvent<{
+    storageUploadPromise: Promise<any>;
+  }>).detail
+    .storageUploadPromise;
+  console.log({ data, error });
+});
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const params = new URLSearchParams(url.search);
@@ -46,12 +54,15 @@ Deno.serve(async (req) => {
     const [browserStream, storageStream] = stream.tee();
 
     // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
+    const storageUploadPromise = supabase.storage
       .from("videos")
       .upload(`audio-stream_${Date.now()}.mp3`, storageStream, {
         contentType: "audio/mp3",
       });
-    console.log({ data, error });
+    const event = new CustomEvent("storageUpload", {
+      detail: { storageUploadPromise },
+    });
+    globalThis.dispatchEvent(event);
 
     return new Response(browserStream, {
       headers: {
